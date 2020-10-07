@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/pseudo_inverse_test.dir/pseudo_inverse_test.cpp.o  -o pseudo_inverse_test libexamples_common.a ../libfranka.so.0.8.0 -Wl,-rpath,/home/ubuntu/libfranka: 

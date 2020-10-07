@@ -23,13 +23,21 @@
  * @warning collision thresholds are set to high values. Make sure you have the user stop at hand!
  */
 
+void print_position(std::array<double, 42> initial_pose){
+        std::cout<<"this is jacobian position"<<std::endl;
+        for (int i = 0; i < 42; i++) {
+          std::cout << initial_pose[i] << "  ";
+          if ((i+1) % 7 == 0)
+            std::cout << std::endl;
+        }
+}
+
 int main(int argc, char** argv) {
   // Check whether the required arguments were passed
   if (argc != 2) {
     std::cerr << "Usage: " << argv[0] << " <robot-hostname>" << std::endl;
     return -1;
   }
-
   // Compliance parameters
   const double translational_stiffness{150.0};
   const double rotational_stiffness{10.0};
@@ -49,6 +57,7 @@ int main(int argc, char** argv) {
     setDefaultBehavior(robot);
     // load the kinematics and dynamics model
     franka::Model model = robot.loadModel();
+
 
     franka::RobotState initial_state = robot.readOnce();
 
@@ -71,9 +80,12 @@ int main(int argc, char** argv) {
       std::array<double, 7> coriolis_array = model.coriolis(robot_state);
       std::array<double, 42> jacobian_array =
           model.zeroJacobian(franka::Frame::kEndEffector, robot_state);
+          // print the jacobian array
+      // print_position(jacobian_array);
 
       // convert to Eigen
       Eigen::Map<const Eigen::Matrix<double, 7, 1>> coriolis(coriolis_array.data());
+      // jacobian matrix
       Eigen::Map<const Eigen::Matrix<double, 6, 7>> jacobian(jacobian_array.data());
       Eigen::Map<const Eigen::Matrix<double, 7, 1>> q(robot_state.q.data());
       Eigen::Map<const Eigen::Matrix<double, 7, 1>> dq(robot_state.dq.data());
@@ -83,6 +95,15 @@ int main(int argc, char** argv) {
 
       // compute error to desired equilibrium pose
       // position error
+
+    std::cout<<"position: "<< position <<std::endl;
+    std::cout<<"positiond: "<< position_d <<std::endl;
+    std::cout<<"positiond: "<< position_d <<std::endl;
+
+    for(int i=0; i<dq.size();i++){
+      std::cout<<"dq "<<dq[i]<<"  "<<std::endl;
+    }
+
       Eigen::Matrix<double, 6, 1> error;
       error.head(3) << position - position_d;
 
@@ -101,14 +122,14 @@ int main(int argc, char** argv) {
       Eigen::VectorXd tau_task(7), tau_d(7);
 
       // Spring damper system with damping ratio=1
+      //matrix transpose multiple
       tau_task << jacobian.transpose() * (-stiffness * error - damping * (jacobian * dq));
       tau_d << tau_task + coriolis;
-
+  
       std::array<double, 7> tau_d_array{};
       Eigen::VectorXd::Map(&tau_d_array[0], 7) = tau_d;
       return tau_d_array;
     };
-
     // start real-time control loop
     std::cout << "WARNING: Collision thresholds are set to high values. "
               << "Make sure you have the user stop at hand!" << std::endl
@@ -124,3 +145,8 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
+
+     
+
+     

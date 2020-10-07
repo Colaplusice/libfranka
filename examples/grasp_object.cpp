@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
 
     // Check for the maximum grasping width.
     franka::GripperState gripper_state = gripper.readOnce();
+    std::cout<<"this is width:"<<"  "<<gripper_state.max_width<<"  "<<grasping_width;
     if (gripper_state.max_width < grasping_width) {
       std::cout << "Object is too large for the current fingers on the gripper." << std::endl;
       return -1;

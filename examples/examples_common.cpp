@@ -2,12 +2,86 @@
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #include "examples_common.h"
 
+#include <franka/exception.h>
+#include <franka/robot.h>
+#include <Eigen/Dense>
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
+#include <iostream>
+#include <string>
+#include<cstdio>
+#include <vector>
+#include <array>
+#include<sstream>
 
-#include <franka/exception.h>
-#include <franka/robot.h>
+
+std::array<double, 7> split_by_space(std::string str) {
+    std::stringstream input(str);
+    std::array<double, 7> res{};
+    std::string result;
+    int ii = 0;
+    while (input >> result || ii < 7) {
+        res[ii++] = stod(result);
+    }
+    return res;
+}
+
+double randomm(int begin, int end){
+    srand((int) time(0));//用系统时间作为随机种子
+    int res=rand() % (end-begin+1)+ begin;
+    double aa=(double)res/100;
+    return aa;
+}
+Eigen::Matrix<double,7,1> randomm_matrix(int begin, int end){
+    std::array<double,7>arr;
+    for (size_t i = 0; i < 7; i++)
+    arr[i]=randomm(begin,end);
+    Eigen::Map<const Eigen::Matrix<double, 7, 1>>result(arr.data());
+    return result;
+}
+
+
+
+std::vector<std::array<double, 7>> read_joint_position_from_file(const char *filename) {
+    freopen(filename, "r", stdin);
+    std:: vector<std::array<double, 7>> res;
+    std::string line;
+    while (getline(std::cin, line)) {
+                 res.push_back(split_by_space(line));
+    }
+    return res;
+}
+
+void print_position(std::array<double, 16> initial_pose) {
+  std::cout << "this is current position" << std::endl;
+  for (int i = 0; i < 16; i++) {
+    std::cout << initial_pose[i] << "  ";
+    if ((i + 1) % 4 == 0)
+      std::cout << std::endl;
+  }
+}
+
+Eigen::MatrixXd pseudoinverse(Eigen::MatrixXd m) {
+  // Eigen::Matrix<float,2,3> m;
+  //  m<<0.68,0.597,-0.211, 0.823,0.566,-0.605;
+  // m<<1,2,3,4,5,6;
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd = m.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+  // Eigen::JacobiSVD<Eigen::MatrixXf> svd(m, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  const Eigen::MatrixXd singularValues = svd.singularValues();
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> singularValuesInv(m.cols(), m.rows());
+  singularValuesInv.setZero();
+  double pinvtoler = 1.e-6;  // choose your tolerance wisely
+  for (unsigned int i = 0; i < singularValues.size(); ++i) {
+    if (singularValues(i) > pinvtoler)
+      singularValuesInv(i, i) = 1.0f / singularValues(i);
+    else
+      singularValuesInv(i, i) = 0.f;
+  }
+  Eigen::MatrixXd pinvmat = svd.matrixV() * singularValuesInv * svd.matrixU().transpose();
+  return pinvmat;
+}
 
 void setDefaultBehavior(franka::Robot& robot) {
   robot.setCollisionBehavior(

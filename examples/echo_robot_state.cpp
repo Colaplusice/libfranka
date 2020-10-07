@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
       // Printing to std::cout adds a delay. This is acceptable for a read loop such as this, but
       // should not be done in a control loop.
       std::cout << robot_state << std::endl;
+      std::cout << robot_state << std::endl;
       return count++ < 100;
     });
 

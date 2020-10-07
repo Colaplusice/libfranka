@@ -33,6 +33,8 @@ int main(int argc, char** argv) {
 
   try {
     franka::Robot robot(argv[1]);
+    robot.automaticErrorRecovery();
+
     setDefaultBehavior(robot);
 
     // First move the robot to a suitable joint configuration

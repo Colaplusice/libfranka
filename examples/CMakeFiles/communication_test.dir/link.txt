@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/communication_test.dir/communication_test.cpp.o  -o communication_test libexamples_common.a ../libfranka.so.0.8.0 -Wl,-rpath,/home/ubuntu/libfranka: 

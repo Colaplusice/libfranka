@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/force_control.dir/force_control.cpp.o  -o force_control libexamples_common.a ../libfranka.so.0.8.0 -Wl,-rpath,/home/ubuntu/libfranka: 

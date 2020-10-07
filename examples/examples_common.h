@@ -24,6 +24,27 @@
 void setDefaultBehavior(franka::Robot& robot);
 
 /**
+ * print the value of robot pose
+ *
+ * @param[in]  initial_pose , an array
+ */
+void print_position(std::array<double, 16> initial_pose);
+
+/**
+ * calculate the pseudo-inverse of matrix
+ *
+ * @param[in] Eigen::MatrixXd
+ */
+
+/**
+ * 
+ */
+std::array<double, 7> split_by_space(std::string str);
+std::vector<std::array<double, 7>> read_joint_position_from_file(const char *filename);
+double randomm(int begin, int end);
+Eigen::Matrix<double,7,1> randomm_matrix(int begin, int end);
+Eigen::MatrixXd pseudoinverse(Eigen::MatrixXd m);
+/**
  * An example showing how to generate a joint pose motion to a goal position. Adapted from:
  * Wisama Khalil and Etienne Dombre. 2002. Modeling, Identification and Control of Robots
  * (Kogan Page Science Paper edition).

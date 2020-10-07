@@ -37,6 +37,9 @@ set(EXAMPLES
   motion_with_control
   print_joint_poses
   vacuum_object
+  play
+  pseudo_inverse_test
+  generate_joint_velocity_2
 )
 
 foreach(example ${EXAMPLES})
