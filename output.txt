@@ -1,0 +1,10 @@
+WARNING: This example will move the robot! Please make sure to have the user stop button at hand!
+Press Enter to continue...
+Finished moving to initial joint configuration.
+this is current position
+0.99999  -4.08988e-06  1.7167e-05  0  
+-4.0899e-06  -0.99999  1.49033e-06  0  
+1.71672e-05  -1.49042e-06  -1  0  
+0.306892  -1.48424e-06  0.486887  1  
+libfranka: Move command aborted: motion aborted by reflex! ["cartesian_motion_generator_joint_acceleration_discontinuity"]
+control_command_success_rate: 0.25

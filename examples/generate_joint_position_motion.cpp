@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}}, {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}});
     std::array<double, 7> initial_position;
     double time = 0.0;
-    static std::vector<std::array<double, 7>> all_joint_values = read_joint_position_from_file("/home/ubuntu/Documents/angle6.txt");
+    static std::vector<std::array<double, 7>> all_joint_values = read_joint_position_from_file("/home/colaplusice/libfranka/build/examples/angle6.txt");
     std::cout<<"vector length"<<all_joint_values.size()<<std::endl;
     robot.control([&initial_position, &time](const franka::RobotState& robot_state,
                                              franka::Duration period) -> franka::JointPositions {
@@ -58,13 +58,6 @@ int main(int argc, char** argv) {
       }
       std::array<double, 7> current_value = all_joint_values.front();
       all_joint_values.erase(all_joint_values.begin());
-      // std::cout<<"robot"<<std::endl;
-
-      // for (size_t i = 0; i < 7; i++)
-      // {
-      // std::cout<<robot_state.q[i]<<" ";
-      // }
-      //std::cout<<std::endl;
       std::cout<<"read"<<std::endl;
       for (size_t i = 0; i < 7; i++)
       {

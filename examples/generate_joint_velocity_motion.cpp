@@ -2,6 +2,7 @@
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #include <franka/duration.h>
 #include <franka/exception.h>
+#include <franka/gripper.h>
 #include <franka/model.h>
 #include <franka/robot.h>
 #include <Eigen/Dense>
@@ -10,6 +11,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <thread>
 #include "examples_common.h"
 /**
  * @example generate_joint_velocity_motion.cpp
@@ -19,8 +21,8 @@
  */
 
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <robot-hostname>" << std::endl;
+  if (argc != 3) {
+    std::cerr << "Usage: " << argv[0] << " <robot-hostname>  <is_gripper: 0 or 1>" << std::endl;
     return -1;
   }
   try {
@@ -39,6 +41,36 @@ int main(int argc, char** argv) {
     std::cin.ignore();
     robot.control(motion_generator);
     std::cout << "Finished moving to initial joint configuration." << std::endl;
+
+  
+    bool is_gripper = std::stoi(argv[2]);
+
+    if (is_gripper) {
+      franka::Gripper gripper(argv[1]);
+      gripper.homing();
+      double grasping_width = 0.0005;
+      franka::GripperState gripper_state = gripper.readOnce();
+      std::cout << "this is width:"
+                << "  " << gripper_state.max_width << "  " << grasping_width;
+      if (gripper_state.max_width < grasping_width) {
+        std::cout << "Object is too large for the current fingers on the gripper." << std::endl;
+        return -1;
+      }
+      // Grasp the object.
+      if (!gripper.grasp(grasping_width, 0.1, 60)) {
+        std::cout << "Failed to grasp object." << std::endl;
+        return -1;
+      }
+      // Wait 3s and check afterwards, if the object is still grasped.
+      std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(3000));
+
+      gripper_state = gripper.readOnce();
+      if (!gripper_state.is_grasped) {
+        std::cout << "Object lost." << std::endl;
+        return -1;
+      }
+    }
+
     // Set additional parameters always before the control loop, NEVER in the control loop!
     // Set collision behavior.
     robot.setCollisionBehavior(
@@ -52,19 +84,20 @@ int main(int argc, char** argv) {
     static double init_error_x;
     static double init_error_y;
     static double init_error_z;
-    double beta=0.01;
-    Eigen::Matrix<double, 7, 1> noise;
-    noise << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+    double beta = 0.08;
+    // Eigen::Matrix<double, 7, 1> noise;
+    // noise << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
     // 0.1 0.1 0.1
     Eigen::Matrix<double, 6, 1> three_noise;
-    three_noise << 0.1, 0.1, 0.1,0,0,0;
+    // three_noise << 0.5, 0.5,0,0,0,0,0;
+    three_noise << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
     static Eigen::Matrix<double, 6, 1> feedback;
-    feedback << 0, 0, 0,0,0,0;
+    feedback << 0, 0, 0, 0, 0, 0;
     double time = 0.0;
     constexpr double r = 0.05;
     constexpr double alpha = M_PI / 6;
 
-    //gripper function
+    // gripper function
     std::array<double, 16> initial_pose;
     auto gripper_function = [&time, &initial_pose](
                                 const franka::RobotState& robot_state,
@@ -75,7 +108,7 @@ int main(int argc, char** argv) {
         initial_pose = robot_state.O_T_EE_c;
         print_position(initial_pose);
       }
-      double rz = 0.0096 * time;
+      double rz = 0.0069 * time;
       std::array<double, 16> new_pose = initial_pose;
       new_pose[14] -= rz;
       if (time >= 10) {
@@ -95,7 +128,7 @@ int main(int argc, char** argv) {
 
     time = 0;
     auto draw_function = [=, &time](const franka::RobotState& robot_state,
-                            franka::Duration period) -> franka::JointVelocities {
+                                    franka::Duration period) -> franka::JointVelocities {
       if (time == 0) {
         initial_state = robot_state;
         init_error_x = robot_state.O_T_EE[12] - initial_state.O_T_EE[12];
@@ -120,88 +153,39 @@ int main(int argc, char** argv) {
       half_jacobian << jacobian;
       Eigen::MatrixXd pse_inverse_jacobian = pseudoinverse(half_jacobian);
 
-      double phi_sin = 2 * M_PI * std::sin(0.5 * M_PI * time / time_max);
-      double phi_sinDot = M_PI * M_PI * std::cos(0.5 * M_PI * time / time_max) / time_max;
-      double phi = phi_sin * std::sin(0.5 * M_PI * time / time_max);
-      double phiDot = phi_sin * M_PI * std::cos(0.5 * M_PI * time / time_max) / time_max;
-      double phiDotDot = M_PI * phi_sinDot * std::cos(0.5 * M_PI * time / time_max) / time_max -
-                         M_PI * M_PI * phi_sin * std::sin(0.5 * M_PI * time / time_max) /
-                             (2 * time_max * time_max);
-      double rx = r * std::cos(2 * phi + alpha) + 0 - r * std::cos(alpha) + init_error_x +
-                  initial_state.O_T_EE[12];
-      double ry = r * std::sin(phi + alpha) + 0 - r * std::sin(alpha) + initial_state.O_T_EE[13];
-      double rz = init_error_z + initial_state.O_T_EE[14];
-      // desired end effector position
-      // double rx = r * time_max * (time - time_max * sin(2 * M_PI * time / time_max) / (2 * M_PI))
-      // /
-      //                 (2 * M_PI) +
-      //             init_error_x + initial_state.O_T_EE[12];
-      // double ry = init_error_y + initial_state.O_T_EE[13];
-      // double rz = init_error_z + initial_state.O_T_EE[14];
 
+      double phi_sin = 2 * M_PI * sin(0.5 * M_PI * time / time_max);
+      double phi_gds = phi_sin * sin(0.5 * M_PI * time / time_max);
+      double phiDot = phi_sin * M_PI * cos(0.5 * M_PI * time / time_max) / time_max;
+
+      double r_gds = 0.08;
+      double rx =
+          r_gds * std::cos(2 * phi_gds) * std::cos(phi_gds) + initial_state.O_T_EE[12] - r_gds;
+      double ry = r_gds * std::cos(2 * phi_gds) * std::sin(phi_gds) + initial_state.O_T_EE[13];
+      double rz = initial_state.O_T_EE[14];
+
+      double drx = -r_gds * phiDot *
+                   (2 * std::sin(2 * phi_gds) * std::cos(phi_gds) +
+                    std::cos(2 * phi_gds) * std::sin(phi_gds));
+      double dry = -r_gds * phiDot *
+                   (2 * std::sin(2 * phi_gds) * std::sin(phi_gds) -
+                    std::cos(2 * phi_gds) * std::cos(phi_gds));
+      double drz = 0;
       Eigen::Matrix<double, 3, 1> rr;
       Eigen::Matrix<double, 3, 1> rd;
       rd << rx, ry, rz;
       rr << robot_state.O_T_EE[12], robot_state.O_T_EE[13], robot_state.O_T_EE[14];
-
-      //  double drx = -2 * r * std::sin(2 * phi + alpha) * phiDot;
-      //  double dry = r * std::cos(phi + alpha) * phiDot;
-      //  double drz = 0;
-      double drx = -2 * r * std::sin(2 * phi + alpha) * phiDot;
-      double dry = r * std::cos(phi + alpha) * phiDot;
-      double drz = 0;
-      double desired_v = r * time_max * (1 - cos(2 * M_PI * time / time_max)) / (2 * M_PI);
-      // double sin_drx = desired_v;
-      // double sin_drx = 0.1;
-      // double sin_dry = 0;
-      // double sin_drz = 0;
       Eigen::Matrix<double, 6, 1> qt;
-      // qt << sin_drx, sin_dry, sin_drz;
-      qt << drx, dry, drz,0,0,0;
-      //  j*rd
-      //  feedback +=(half_jacobian*dq-qt);
-      // Eigen::Matrix<double, 7, 1> joint_volocity = pse_inverse_jacobian * (qt - 1 * (rr - rd));
-      // Eigen::Matrix<double, 7, 1> joint_volocity = pse_inverse_jacobian * (qt);
-      //  Eigen::Matrix<double,3,1>a=;
+      qt << drx, dry, drz, 0, 0, 0;
       feedback += half_jacobian * dq - qt;
       Eigen::Matrix<double, 7, 1> joint_volocity = pse_inverse_jacobian * qt;
       Eigen::Matrix<double, 7, 1> res = (pse_inverse_jacobian * feedback);
-      // Eigen::Matrix<double,3,1>noise;
-      // noise<<0.1,0.1,0.1;
-      // Eigen::Matrix<double,7,1>noises;
-      // noises=pse_inverse_jacobian*noise;
-      // Eigen::Matrix<double,7,1>ran_m=randomm_matrix(0,200);
-      joint_volocity -= (beta * res)+ pse_inverse_jacobian*three_noise;
-      // franka::JointVelocities origin_velocities = {{0.0, 0.0, 0.0, omega, omega, omega, omega}};
+      joint_volocity -= beta * res + pse_inverse_jacobian * (three_noise * time / time_max);
+    
       std::array<double, 7> joint_data;
       Eigen::Matrix<double, 7, 1>::Map(joint_data.data(), joint_volocity.rows(),
                                        joint_volocity.cols()) = joint_volocity;
       franka::JointVelocities velocities = {joint_data};
-      // cout begin
-      // std::cout << "initial state" << std::endl;
-      // for (int i = 0; i < 16; i++) {
-      //   std::cout << initial_state.O_T_EE[i] << "  ";
-      //   if ((i + 1) % 4 == 0)
-      //     std::cout << std::endl;
-      // }
-      // std::cout << "~~~~~~~~" << std::endl;
-      // std::cout << "rr:" << std::endl << rr << std::endl;
-      // std::cout << "dq:" << std::endl << dq << std::endl;
-      // std::cout << "qt:" << std::endl << qt << std::endl;
-      // // std::cout << "rd:" << std::endl << rd << std::endl;
-      // std::cout << "rr-rd:" << std::endl << rr - rd << std::endl;
-      // std::cout << "this is jacobian" << std::endl << jacobian << std::endl;
-      // std::cout << "feedback" << std::endl << feedback << std::endl;
-      // //std::cout << "random m" << std::endl << ran_m << std::endl;
-      // std::cout << "current added feedback" << std::endl << half_jacobian * dq - qt << std::endl;
-      // std::cout << "current res" << std::endl << res << std::endl;
-      // std::cout << "this is joint velocity" << std::endl;
-      // for (size_t i = 0; i < 7; i++) {
-      //   std::cout << joint_data[i] << " ";
-      // }
-      // std::cout << std::endl;
-      // std::cout << "~~~~~~~~" << std::endl;
-      // cout end
       if (time >= time_max) {
         std::cout << std::endl << "Finished motion, shutting down example" << std::endl;
         // return franka::MotionFinished(origin_velocities);
@@ -210,10 +194,15 @@ int main(int argc, char** argv) {
       // return origin_velocities;
       return velocities;
     };
-    
-  // run robot
+    // run robot
     robot.control(gripper_function);
+    time = 0;
     robot.control(draw_function);
+        time = 0;
+
+    MotionGenerator motion_generators(0.5, q_goal);
+
+    robot.control(motion_generators);
   } catch (const franka::Exception& e) {
     std::cout << e.what() << std::endl;
     return -1;
